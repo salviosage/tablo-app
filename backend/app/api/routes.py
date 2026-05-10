@@ -1,7 +1,8 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from app.models.schemas import JobStatusResponse, UploadResponse
+from app.models.schemas import ExtractionResult, JobStatusResponse, UploadResponse
 from app.services import intake
+from app.services.extraction import get_extraction, run_extraction
 
 router = APIRouter()
 
@@ -14,7 +15,7 @@ async def status():
         "status": "running",
         "features": {
             "intake": True,
-            "extractors": False,
+            "extractors": True,
             "normalize": False,
             "reconcile": False,
             "dashboard": False,
@@ -82,6 +83,40 @@ async def list_jobs():
             for j in jobs
         ],
     }
+
+
+@router.post("/jobs/{job_id}/extract", response_model=ExtractionResult)
+async def extract_job(job_id: str):
+    """
+    Run extractors on all files in a job.
+
+    Dispatches each file to the right extractor (PDF, XLSX, image OCR, text)
+    based on its classified type. Returns all extracted data.
+    """
+    job = intake.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.status not in ("classified", "processing"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job is in '{job.status}' state — must be 'classified' to extract",
+        )
+
+    result = run_extraction(job)
+    return result
+
+
+@router.get("/jobs/{job_id}/extract", response_model=ExtractionResult)
+async def get_extraction_result(job_id: str):
+    """Get the extraction results for a job (must have been extracted first)."""
+    result = get_extraction(job_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No extraction results — call POST /jobs/{job_id}/extract first",
+        )
+    return result
 
 
 @router.delete("/jobs/{job_id}")
