@@ -72,3 +72,58 @@ class JobStatusResponse(BaseModel):
     total_size_bytes: int
     files: list[FileInfo]
     errors: list[str]
+
+
+# Extraction models 
+
+
+class ExtractedTransaction(BaseModel):
+    """A single transaction extracted from a credit card statement or receipt."""
+
+    date: str  # ISO date string
+    description: str
+    amount: float  # positive = charge, negative = refund
+    transaction_id: str = ""
+    source_file: str = ""
+
+
+class ExtractedInvoice(BaseModel):
+    """A single invoice row extracted from a spreadsheet."""
+
+    client: str
+    description: str = ""
+    amount: float
+    date_sent: str | None = None  # ISO date or raw string if unparseable
+    date_paid: str | None = None
+    source_file: str = ""
+
+
+class ExtractedReceipt(BaseModel):
+    """Data extracted from a receipt image via OCR."""
+
+    vendor: str = ""
+    date: str = ""
+    items: list[dict] = Field(default_factory=list)  # [{"text": ..., "amount": ...}]
+    total: float | None = None
+    raw_text: str = ""  # full OCR output for debugging
+    confidence: float = 0.0  # OCR confidence 0-1
+    source_file: str = ""
+
+
+class ExtractedNotes(BaseModel):
+    """Structured data extracted from freeform text notes."""
+
+    raw_text: str = ""
+    lines: list[str] = Field(default_factory=list)
+    source_file: str = ""
+
+
+class ExtractionResult(BaseModel):
+    """The combined output of running all extractors on a job's files."""
+
+    job_id: str
+    transactions: list[ExtractedTransaction] = Field(default_factory=list)
+    invoices: list[ExtractedInvoice] = Field(default_factory=list)
+    receipts: list[ExtractedReceipt] = Field(default_factory=list)
+    notes: list[ExtractedNotes] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
