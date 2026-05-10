@@ -170,7 +170,8 @@ def extract_image(file_path: str) -> tuple[ExtractedReceipt, list[str]]:
             return ExtractedReceipt(source_file=path.name), warnings
 
     if not raw_text.strip():
-        warnings.append(f"Image '{path.name}': OCR produced no text (may not be a receipt)")
+        warnings.append(
+            f"Image '{path.name}': OCR produced no text (may not be a receipt)")
         return ExtractedReceipt(
             raw_text="",
             source_file=path.name,

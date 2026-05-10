@@ -27,7 +27,8 @@ def extract_text(file_path: str) -> tuple[ExtractedNotes, list[str]]:
     except UnicodeDecodeError:
         try:
             raw = path.read_text(encoding="latin-1")
-            warnings.append(f"Text '{path.name}': read with latin-1 fallback encoding")
+            warnings.append(
+                f"Text '{path.name}': read with latin-1 fallback encoding")
         except Exception as e:
             warnings.append(f"Text: couldn't read '{path.name}': {e}")
             return ExtractedNotes(source_file=path.name), warnings

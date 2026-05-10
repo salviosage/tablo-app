@@ -128,19 +128,22 @@ def extract_xlsx(file_path: str) -> tuple[list[ExtractedInvoice], list[str]]:
     required = {"client", "amount"}
     missing = required - set(col_map.keys())
     if missing:
-        warnings.append(f"XLSX '{path.name}': missing expected columns: {missing}")
+        warnings.append(
+            f"XLSX '{path.name}': missing expected columns: {missing}")
         return invoices, warnings
 
     # Parse data rows
     empty_count = 0
 
     for row_idx, row in enumerate(rows[1:], start=2):
-        client = row[col_map["client"]] if col_map["client"] < len(row) else None
+        client = row[col_map["client"]
+                     ] if col_map["client"] < len(row) else None
         if client is None or str(client).strip() == "":
             empty_count += 1
             continue
 
-        amount = _parse_amount(row[col_map["amount"]] if col_map["amount"] < len(row) else None)
+        amount = _parse_amount(row[col_map["amount"]]
+                               if col_map["amount"] < len(row) else None)
         if amount is None:
             warnings.append(f"XLSX row {row_idx}: couldn't parse amount")
             continue

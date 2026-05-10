@@ -72,11 +72,13 @@ def extract_pdf(file_path: str) -> tuple[list[ExtractedTransaction], list[str]]:
         try:
             month = MONTH_MAP.get(month_str.lower())
             if month is None:
-                warnings.append(f"Unknown month '{month_str}' in transaction {txn_id}")
+                warnings.append(
+                    f"Unknown month '{month_str}' in transaction {txn_id}")
                 continue
 
             # Parse amount: remove $, commas, convert en-dash to minus
-            cleaned = raw_amount.replace("$", "").replace(",", "").replace("\u2013", "-")
+            cleaned = raw_amount.replace("$", "").replace(
+                ",", "").replace("\u2013", "-")
             amount = float(cleaned)
 
             # Infer year from context (Q1 2025 statement)
