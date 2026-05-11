@@ -1,10 +1,12 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from pydantic import BaseModel
 
 from app.models.schemas import ExtractionResult, JobStatusResponse, UploadResponse
 from app.models.normalized import NormalizedResult
 from app.services import intake
 from app.services.extraction import get_extraction, run_extraction
 from app.services.normalizer import get_normalized, normalize
+from app.services.reconciler import ReconciliationResult, get_reconciliation, reconcile
 
 router = APIRouter()
 
@@ -19,7 +21,7 @@ async def status():
             "intake": True,
             "extractors": True,
             "normalize": True,
-            "reconcile": False,
+            "reconcile": True,
             "dashboard": False,
         },
     }
@@ -149,12 +151,48 @@ async def get_normalized_result(job_id: str):
     return result
 
 
-@router.post("/jobs/{job_id}/process", response_model=NormalizedResult)
+@router.post("/jobs/{job_id}/reconcile", response_model=ReconciliationResult)
+async def reconcile_job(job_id: str):
+    """
+    Run cross-document reconciliation on normalized data.
+
+    Must be called after /normalize. Matches refunds, finds missing receipts,
+    checks invoice aging, detects anomalies, and computes data quality score.
+    """
+    normalized = get_normalized(job_id)
+    if normalized is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No normalized results — call POST /jobs/{job_id}/normalize first",
+        )
+
+    result = reconcile(normalized)
+    return result
+
+
+@router.get("/jobs/{job_id}/reconcile", response_model=ReconciliationResult)
+async def get_reconciliation_result(job_id: str):
+    """Get reconciliation results for a job."""
+    result = get_reconciliation(job_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No reconciliation results — call POST /jobs/{job_id}/reconcile first",
+        )
+    return result
+
+
+class FullResult(BaseModel):
+    normalized: NormalizedResult
+    reconciliation: ReconciliationResult
+
+
+@router.post("/jobs/{job_id}/process")
 async def process_job(job_id: str):
     """
-    One-shot: extract + normalize in a single call.
+    One-shot: extract + normalize + reconcile in a single call.
 
-    Convenience endpoint that runs the full pipeline on an uploaded job.
+    Runs the full Tablo pipeline on an uploaded job.
     """
     job = intake.get_job(job_id)
     if job is None:
@@ -167,8 +205,13 @@ async def process_job(job_id: str):
         )
 
     extraction = run_extraction(job)
-    result = normalize(extraction)
-    return result
+    normalized = normalize(extraction)
+    reconciliation = reconcile(normalized)
+
+    return {
+        "normalized": normalized.model_dump(),
+        "reconciliation": reconciliation.model_dump(),
+    }
 
 
 @router.delete("/jobs/{job_id}")
