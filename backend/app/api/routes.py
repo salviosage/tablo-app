@@ -1,8 +1,10 @@
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.models.schemas import ExtractionResult, JobStatusResponse, UploadResponse
+from app.models.normalized import NormalizedResult
 from app.services import intake
 from app.services.extraction import get_extraction, run_extraction
+from app.services.normalizer import get_normalized, normalize
 
 router = APIRouter()
 
@@ -16,7 +18,7 @@ async def status():
         "features": {
             "intake": True,
             "extractors": True,
-            "normalize": False,
+            "normalize": True,
             "reconcile": False,
             "dashboard": False,
         },
@@ -116,6 +118,56 @@ async def get_extraction_result(job_id: str):
             status_code=404,
             detail="No extraction results — call POST /jobs/{job_id}/extract first",
         )
+    return result
+
+
+@router.post("/jobs/{job_id}/normalize", response_model=NormalizedResult)
+async def normalize_job(job_id: str):
+    """
+    Normalize extraction results into clean, categorized financial data.
+    """
+    extraction = get_extraction(job_id)
+    if extraction is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No extraction results — call POST /jobs/{job_id}/extract first",
+        )
+
+    result = normalize(extraction)
+    return result
+
+
+@router.get("/jobs/{job_id}/normalize", response_model=NormalizedResult)
+async def get_normalized_result(job_id: str):
+    """Get the normalized results for a job."""
+    result = get_normalized(job_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No normalized results — call POST /jobs/{job_id}/normalize first",
+        )
+    return result
+
+
+@router.post("/jobs/{job_id}/process", response_model=NormalizedResult)
+async def process_job(job_id: str):
+    """
+    One-shot: extract + normalize in a single call.
+
+    Convenience endpoint that runs the full pipeline on an uploaded job.
+    """
+    job = intake.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.status not in ("classified", "processing"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Job is in '{job.status}' state — must be 'classified' to process",
+        )
+
+    extraction = run_extraction(job)
+    result = normalize(extraction)
     return result
 
 
